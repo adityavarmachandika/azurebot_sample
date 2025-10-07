@@ -7,7 +7,7 @@ from botbuilder.schema import Activity
 
 # ------------------- CONFIG -------------------
 APP_ID = "bbdadc98-3307-4825-a7ce-05daa9000111"  # Azure App ID
-APP_PASSWORD = "YOUR_APP_PASSWORD"               # Azure App Password (from App Registration)
+APP_PASSWORD = "Fpn8Q~35kByG3ogG6c1SwZmhSbO.amhD3ffddamU"               # Azure App Password (from App Registration)
 PORT = 3978
 # ----------------------------------------------
 
