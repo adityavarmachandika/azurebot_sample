@@ -2,19 +2,17 @@ from flask import Flask, request, Response
 import asyncio
 import logging
 import os
+import sys
 
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
-from botbuilder.schema import Activity
 
 # ------------------- CONFIG -------------------
-# Load App ID and Password from environment variables for security
 APP_ID = os.getenv("APP_ID", "bbdadc98-3307-4825-a7ce-05daa9000111")
-APP_PASSWORD = "Fpn8Q~35kByG3ogG6c1SwZmhSbO.amhD3ffddamU" # Must be set in environment
+APP_PASSWORD = os.getenv("APP_PASSWORD")  # Must be set in environment
 PORT = int(os.getenv("PORT", 3978))
 
 if not APP_PASSWORD:
     raise RuntimeError("APP_PASSWORD not set in environment")
-
 # ----------------------------------------------
 
 # Setup logging
@@ -30,25 +28,47 @@ adapter = BotFrameworkAdapter(adapter_settings)
 
 # ----------------- BOT LOGIC ------------------
 async def on_message_activity(turn_context: TurnContext):
-    user_text = turn_context.activity.text
-    logger.info(f"Received message: {user_text}")
-    await turn_context.send_activity(f"You said: {user_text}")
+    try:
+        user_text = turn_context.activity.text
+        if not user_text:
+            user_text = "<empty message>"
+        logger.info(f"Received message: {user_text}")
+
+        # Reply to user
+        await turn_context.send_activity(f"You said: {user_text}")
+    except Exception as e:
+        logger.error(f"Error in bot logic: {e}", exc_info=True)
+        # Optionally send a fallback message to user
+        await turn_context.send_activity("Sorry, something went wrong.")
 
 # ---------------- ROUTE ----------------------
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    # ---------------- FIX for 415 ----------------
-    # Accept Content-Type: application/json and variants (like charset=utf-8)
-    if "application/json" not in request.headers.get("Content-Type", ""):
-        logger.warning(f"Unsupported Media Type: {request.headers.get('Content-Type')}")
-        return Response(status=415)
+    try:
+        # Accept JSON (including charset variants)
+        content_type = request.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            logger.warning(f"Unsupported Media Type: {content_type}")
+            return Response("Unsupported Media Type", status=415)
 
-    # Deserialize incoming activity
-    activity = Activity().deserialize(request.json)
+        auth_header = request.headers.get("Authorization", "")
 
-    # Process the activity via the Adapter and Bot logic
-    asyncio.run(adapter.process_activity(activity, "", on_message_activity))
-    return Response(status=200)
+        # Process activity via adapter
+        try:
+            asyncio.run(adapter.process_activity(request, auth_header, on_message_activity))
+        except RuntimeError as e:
+            # Handle nested event loop (rare on Render)
+            logger.warning(f"Asyncio RuntimeError: {e}, retrying with new loop")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(adapter.process_activity(request, auth_header, on_message_activity))
+            loop.close()
+
+        return Response(status=200)
+
+    except Exception as e:
+        logger.error(f"Error handling request: {e}", exc_info=True)
+        return Response("Internal Server Error", status=500)
 
 # ----------------- RUN ------------------------
 if __name__ == "__main__":

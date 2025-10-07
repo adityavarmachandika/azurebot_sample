@@ -1,4 +1,4 @@
-Flask
-botbuilder-core
-botbuilder-schema
-aiohttp
+Flask==2.3.5
+botbuilder-core==4.22.1
+botbuilder-schema==4.22.1
+python-dotenv==1.0.0
